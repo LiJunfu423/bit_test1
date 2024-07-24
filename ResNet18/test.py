@@ -1,81 +1,58 @@
+import numpy as np
 import torch
 import torchvision
-import torchvision.transforms as transforms
-import matplotlib.pyplot as plt
-
+from matplotlib import pyplot as plt
+from torchvision import transforms
+from tqdm import tqdm
+from torch.utils import data
 from model_res import Resnet18
 from model_res_no import Resnet18_no
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# net = Resnet18(10)
+net = Resnet18_no(10)
 
-def main():
-    # 使用 GPU 如果可用的话
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+load_path = "no_residuals.pth"
+load_weights = torch.load(load_path)
+net.load_state_dict(load_weights)
+batch_size = 128
+transform = transforms.Compose([transforms.ToTensor()])
+classes = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
+test_dataset = torchvision.datasets.CIFAR10("./dataset", train=False, download=True, transform=transform)
+test_dataloader = data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
+data_loaders = {
+    "test": test_dataloader
+}
+net.to(device)
+net.eval()
+class_correct = list(0. for i in range(10))
+class_total = list(0. for i in range(10))
+for data in tqdm(data_loaders['test']):
+    imgs, labels = data
+    imgs = imgs.to(device)
+    labels = labels.to(device)
+    outputs = net(imgs)
+    _, preds = torch.max(outputs, 1)
+    c = (preds == labels)
+    c = c.squeeze()
+    for i in range(len(labels)):
+        label = labels[i]
+        class_correct[label] += c[i]
+        class_total[label] += 1
 
-    # 测试集数据归一化
-    transform_test = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
-    ])
+class_accuracies = [100 * class_correct[i] / class_total[i] for i in range(10)]
+overall_accuracy = 100 * sum(class_correct) / sum(class_total)
 
-    # 加载测试数据集
-    test_data = torchvision.datasets.CIFAR10(
-        root="./dataset", train=False, download=True, transform=transform_test)
+for i in range(10):
+    print(
+        f"Accuracy of {classes[i]:>10} : {np.round(100 * class_correct[i].detach().cpu().numpy() / class_total[i], 2)}%")
 
-    # 数据加载器
-    test_loader = torch.utils.data.DataLoader(
-        dataset=test_data, batch_size=128, shuffle=False, num_workers=2)
-
-    # 加载模型
-    model = Resnet18_no(10)  # 确保使用与你训练时相同的模型结构
-    model = model.to(device)
-    model.eval()
-
-    # 加载模型权重
-    model.load_state_dict(torch.load("no_residuals.pth"))
-
-    # 初始化列表用于记录每个类别的正确和总预测数
-    class_correct = [0.0 for _ in range(10)]
-    class_total = [0.0 for _ in range(10)]
-    total_correct = 0  # 总正确预测数
-    total_samples = 0  # 总样本数
-
-    # 评估模型
-    with torch.no_grad():
-        for imgs, targets in test_loader:
-            imgs, targets = imgs.to(device), targets.to(device)
-            outputs = model(imgs)
-            _, predicted = torch.max(outputs, 1)
-
-            # 跟踪每个类别的正确预测数和总样本数
-            for i in range(len(targets)):
-                label = targets[i].item()
-                class_total[label] += 1
-                if predicted[i] == targets[i]:
-                    class_correct[label] += 1
-                total_correct += (predicted[i] == targets[i]).item()
-                total_samples += 1
-
-    # 计算每个类别的准确率
-    class_accuracy = [100 * (correct / total) if total > 0 else 0 for correct, total in zip(class_correct, class_total)]
-    overall_accuracy = 100 * total_correct / total_samples
-
-    # 打印每个类别的准确率
-    classes = test_data.classes
-    for i, accuracy in enumerate(class_accuracy):
-        print(f"Class {classes[i]} Accuracy: {accuracy:.2f}%")
-
-    # 打印整体准确率
-    print(f"Overall Accuracy: {overall_accuracy:.2f}%")
-
-    # 绘制柱状图
-    plt.figure(figsize=(10, 5))
-    plt.bar(classes, class_accuracy, color='skyblue')
-    plt.ylabel('%')
-    plt.title(f'The Accuracy of ResNet18 without residuals ON CIFAR-10\nOverall Accuracy: {overall_accuracy:.2f}%')
-    plt.ylim(0, 100)
-    plt.xticks(rotation=45)
-    plt.grid(axis='y', linestyle='--', alpha=0.7)
-    plt.show()
-
-if __name__ == '__main__':
-    main()
+plt.figure(figsize=(12, 6))
+plt.bar(classes, class_accuracies, color='skyblue')
+plt.axhline(y=overall_accuracy, color='r', linestyle='--', label=f'Overall accuracy: {overall_accuracy:.2f}%')
+plt.xlabel('Classes')
+plt.ylabel('Accuracy (%)')
+# plt.title('The Accuracy of ResNet18 with residuals ON CIFAR-10')
+plt.title('The Accuracy of ResNet18 without residuals ON CIFAR-10')
+plt.legend()
+plt.show()
