@@ -5,18 +5,25 @@ from matplotlib import pyplot as plt
 from torchvision import transforms
 from tqdm import tqdm
 from torch.utils import data
-from model_res import Resnet18
-from model_res_no import Resnet18_no
+
+from model_res18 import ResNet18
+from model_res18_no import ResNet18_no
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-# net = Resnet18(10)
-net = Resnet18_no(10)
 
+# net = ResNet18()
+# load_path = "residuals.pth"
+
+net = ResNet18_no()
 load_path = "no_residuals.pth"
+
 load_weights = torch.load(load_path)
 net.load_state_dict(load_weights)
-batch_size = 128
-transform = transforms.Compose([transforms.ToTensor()])
+batch_size = 256
+transform = transforms.Compose([
+    transforms.ToTensor(),
+    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+])
 classes = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
 test_dataset = torchvision.datasets.CIFAR10("./dataset", train=False, download=True, transform=transform)
 test_dataloader = data.DataLoader(test_dataset, batch_size=batch_size, shuffle=False)
