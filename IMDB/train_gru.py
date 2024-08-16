@@ -1,5 +1,5 @@
 import torch
-from torch.optim import Adam
+from torch.optim import Adam, SGD
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -26,7 +26,7 @@ def get_dataloader(train):
 vocab = pickle.load(open("./models/vocab.pkl", "rb"))
 num_embeddings = len(vocab)
 padding_idx = vocab.PAD
-log_dir = "logs"
+log_dir = "logs1"
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 writer = SummaryWriter(log_dir)
 gru_model = GruModel(num_embeddings=num_embeddings, padding_idx=padding_idx).to(device)
@@ -35,8 +35,9 @@ imdb_dataset = dataset_vocab.ImdbDataset(True)
 device = torch.device('cuda')
 train_dataloader = get_dataloader(True)
 test_dataloader = get_dataloader(False)
-optimizer = Adam(gru_model.parameters())
-epoch = 100
+epoch = 20
+learning_rate=0.5
+optimizer = SGD(gru_model.parameters(),lr=learning_rate)
 best_acc = 0.0
 best_epoch = 0
 for i in range(epoch):
@@ -74,7 +75,7 @@ for i in range(epoch):
         correct, len(test_dataloader.dataset),
         100. * correct / len(test_dataloader.dataset)))
     writer.add_scalar("test_loss", test_loss, i + 1)
-    writer.add_scalar("Accuracy", 100.*correct, i + 1)
+    writer.add_scalar("Accuracy", 100. * correct / len(test_dataloader.dataset), i + 1)
     if correct > best_acc:
         best_acc = correct
         best_epoch = i + 1

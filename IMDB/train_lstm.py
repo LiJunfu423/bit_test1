@@ -1,5 +1,5 @@
 import torch
-from torch.optim import Adam
+from torch.optim import Adam, SGD
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
@@ -7,11 +7,6 @@ import dataset_vocab
 from lstm_model import ImdbModel
 import pickle
 import torch.nn.functional as F
-def binary_accuracy(preds, y):
-    rounded_preds = torch.round(torch.sigmoid(preds))
-    correct = (rounded_preds == y).float()
-    acc = correct.sum() / len(correct)
-    return acc
 def collate_fn(batch):
 
     reviews, labels = zip(*batch)
@@ -27,8 +22,9 @@ def get_dataloader(train):
 vocab = pickle.load(open("./models/vocab.pkl", "rb"))
 num_embeddings = len(vocab)
 padding_idx = vocab.PAD
-log_dir = "logs"
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+log_dir = "logs1"
 writer = SummaryWriter(log_dir)
 imdb_model = ImdbModel(num_embeddings=num_embeddings, padding_idx=padding_idx).to(device)
 imdb_dataset = dataset_vocab.ImdbDataset(True)
@@ -36,8 +32,9 @@ imdb_dataset = dataset_vocab.ImdbDataset(True)
 device = torch.device('cuda')
 train_dataloader = get_dataloader(True)
 test_dataloader = get_dataloader(False)
-optimizer = Adam(imdb_model.parameters())
-epoch = 100
+epoch = 20
+learning_rate=1.0
+optimizer = SGD(imdb_model.parameters(),lr=learning_rate)
 best_acc = 0.0
 best_epoch = 0
 for i in range(epoch):
@@ -55,6 +52,7 @@ for i in range(epoch):
         optimizer.step()
         bar.set_description("epcoh:{}  idx:{}   loss:{:.6f}".format(i, idx, loss.item()))
     train_loss /= len(train_dataloader.dataset)
+    print("train_loss is",train_loss)
     writer.add_scalar("train_loss", train_loss, i+1)
     # 测试
     test_loss = 0
@@ -75,7 +73,7 @@ for i in range(epoch):
         correct, len(test_dataloader.dataset),
         100. * correct / len(test_dataloader.dataset)))
     writer.add_scalar("test_loss", test_loss, i+1)
-    writer.add_scalar("Accuracy", 100.*correct, i+1)
+    writer.add_scalar("Accuracy", 100. * correct / len(test_dataloader.dataset), i+1)
     if correct > best_acc:
         best_acc = correct
         best_epoch = i + 1
